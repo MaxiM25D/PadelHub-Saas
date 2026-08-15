@@ -1,0 +1,230 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  STAFF
+}
+
+enum PlatformRole {
+  USER
+  SUPERADMIN
+}
+
+enum SportType {
+  PADEL
+  FOOTBALL
+  OTHER
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+  COMPLETED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  REFUNDED
+}
+
+model Tenant {
+  id                     String                  @id @default(cuid())
+  slug                   String                  @unique
+  name                   String
+  timezone               String                  @default("America/Argentina/Buenos_Aires")
+  currency               String                  @default("ARS")
+  status                 TenantStatus            @default(ACTIVE)
+  memberships            Membership[]
+  venues                 Venue[]
+  customers              Customer[]
+  bookings               Booking[]
+  mercadoPagoConnection  MercadoPagoConnection?
+  mercadoPagoOAuthStates MercadoPagoOAuthState[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+}
+
+model User {
+  id                     String                  @id @default(cuid())
+  email                  String                  @unique
+  passwordHash           String
+  firstName              String
+  lastName               String
+  platformRole           PlatformRole            @default(USER)
+  memberships            Membership[]
+  mercadoPagoOAuthStates MercadoPagoOAuthState[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+}
+
+model Membership {
+  tenantId  String
+  userId    String
+  role      MembershipRole @default(STAFF)
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+
+  @@id([tenantId, userId])
+  @@index([userId])
+}
+
+model Venue {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  address   String
+  active    Boolean  @default(true)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  courts    Court[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, id])
+  @@index([tenantId, active])
+}
+
+model Court {
+  id              String          @id @default(cuid())
+  tenantId        String
+  venueId         String
+  name            String
+  sport           SportType
+  durationMinutes Int             @default(60)
+  priceInCents    Int
+  active          Boolean         @default(true)
+  venue           Venue           @relation(fields: [tenantId, venueId], references: [tenantId, id], onDelete: Cascade)
+  schedules       CourtSchedule[]
+  bookings        Booking[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, venueId, name])
+  @@index([tenantId, venueId, active])
+}
+
+model CourtSchedule {
+  id           String   @id @default(cuid())
+  tenantId     String
+  courtId      String
+  dayOfWeek    Int
+  opensAt      String
+  closesAt     String
+  priceInCents Int?
+  court        Court    @relation(fields: [tenantId, courtId], references: [tenantId, id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([tenantId, courtId, dayOfWeek, opensAt])
+  @@index([tenantId, courtId])
+}
+
+model Customer {
+  id        String    @id @default(cuid())
+  tenantId  String
+  email     String
+  firstName String
+  lastName  String
+  phone     String?
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bookings  Booking[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([tenantId, email])
+  @@unique([tenantId, id])
+  @@index([tenantId])
+}
+
+model Booking {
+  id              String           @id @default(cuid())
+  tenantId        String
+  courtId         String
+  customerId      String
+  startsAt        DateTime
+  endsAt          DateTime
+  status          BookingStatus    @default(PENDING)
+  expiresAt       DateTime?
+  priceInCents    Int
+  currency        String           @default("ARS")
+  notes           String?
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  court           Court            @relation(fields: [tenantId, courtId], references: [tenantId, id], onDelete: Restrict)
+  customer        Customer         @relation(fields: [tenantId, customerId], references: [tenantId, id], onDelete: Restrict)
+  paymentAttempts PaymentAttempt[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([tenantId, id])
+  @@index([tenantId, courtId, startsAt])
+  @@index([tenantId, customerId])
+  @@index([status, expiresAt])
+}
+
+model MercadoPagoConnection {
+  tenantId              String    @id
+  mercadoPagoUserId     String
+  accessTokenEncrypted  String
+  refreshTokenEncrypted String
+  accessTokenExpiresAt  DateTime?
+  publicKey             String?
+  liveMode              Boolean   @default(false)
+  connectedAt           DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  tenant                Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model MercadoPagoOAuthState {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  userId                String
+  stateHash             String   @unique
+  codeVerifierEncrypted String
+  expiresAt             DateTime
+  tenant                Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt             DateTime @default(now())
+
+  @@index([tenantId, expiresAt])
+  @@index([userId])
+}
+
+model PaymentAttempt {
+  id                String        @id @default(cuid())
+  tenantId          String
+  bookingId         String
+  status            PaymentStatus @default(PENDING)
+  idempotencyKey    String        @unique
+  preferenceId      String?       @unique
+  externalPaymentId String?       @unique
+  externalStatus    String?
+  amountInCents     Int
+  currency          String
+  booking           Booking       @relation(fields: [tenantId, bookingId], references: [tenantId, id], onDelete: Cascade)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@unique([tenantId, id])
+  @@index([tenantId, bookingId])
+  @@index([tenantId, status])
+}

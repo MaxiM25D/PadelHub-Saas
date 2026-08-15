@@ -1,34 +1,31 @@
-FRONTEND
-Next.js
-TypeScript
-Tailwind CSS
+# PadelHub SaaS
 
-BACKEND
-NestJS
-TypeScript
-REST API
-Socket.IO / WebSocket
+Plataforma multi-tenant para administrar complejos deportivos, disponibilidad de canchas, reservas y pagos.
 
-DATOS
-PostgreSQL
-Prisma
+## Stack
 
-INFRAESTRUCTURA
-Redis
-Docker
-Docker Compose
+- Next.js, TypeScript y Tailwind CSS
+- NestJS, REST y Socket.IO
+- PostgreSQL, Prisma y Redis
+- pnpm Workspaces y Turborepo
+- Mercado Pago OAuth por complejo
 
-ARQUITECTURA
-Multi-Tenant
-JWT + Refresh Tokens
+## Desarrollo local
 
-COLABORACIÓN
-Git
-GitHub
+Requisitos: Node.js 20.9+, Corepack y Docker Desktop.
 
-MONOREPO
-pnpm Workspaces
-Turborepo opcional
+```bash
+corepack enable
+pnpm install
+Copy-Item .env.example .env
+docker compose up -d
+pnpm db:generate
+pnpm db:migrate
+pnpm dev
+```
 
-PAGOS
-Mercado Pago API
+- Web: http://localhost:3000
+- API: http://localhost:3001/api
+- Health: http://localhost:3001/api/health
+
+Cada complejo conecta su cuenta de Mercado Pago mediante OAuth Authorization Code. PadelHub cifra los tokens y crea los cobros usando la cuenta del complejo. La reserva se confirma mediante webhook verificado, nunca solamente por el retorno del navegador.
